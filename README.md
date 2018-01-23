@@ -1,6 +1,6 @@
 # AN(N) Example
 
-## Some pretty easy (but still awesome) example with artificial neural networks
+## Some pretty easy (but still awesome) examples with artificial neural networks
 
 ### What is it
 This repository is just a collection of some simple examples I've developed during my studies about artificial neural networks (ANN). They are really nothing special, but could give you an interesting overview about how poverfull this class of machine learning model can be. All the examples are written in Python, using the Lasagne library (as well as Theano and Numpy at a lower level) to implement the networks. More examples will be added in future (maybe)!
