@@ -7,12 +7,15 @@ import os
 class ChaRNN:
     def __init__(self, num_chars, num_hidden_units, x, seq_length, grad_clip):
         self.l_input = lasagne.layers.InputLayer((None, seq_length, num_chars), x)
-        self.l_rec1 = lasagne.layers.LSTMLayer(self.l_input, num_hidden_units, nonlinearity = lasagne.nonlinearities.tanh, grad_clipping = grad_clip)
-        self.l_rec2 = lasagne.layers.LSTMLayer(self.l_rec1, num_hidden_units, nonlinearity = lasagne.nonlinearities.tanh, grad_clipping = grad_clip)
-        self.l_out = lasagne.layers.DenseLayer(self.l_rec2, num_chars, nonlinearity = lasagne.nonlinearities.softmax)
+        self.l_rec = lasagne.layers.LSTMLayer(self.l_input, num_hidden_units, nonlinearity = lasagne.nonlinearities.tanh, grad_clipping = grad_clip)
+        self.l_drop = lasagne.layers.DropoutLayer(self.l_rec, p = 0.2)
+        self.l_out = lasagne.layers.DenseLayer(self.l_drop, num_chars, nonlinearity = lasagne.nonlinearities.softmax)
 
     def get_output(self):
         return lasagne.layers.get_output(self.l_out)
+
+    def get_deterministic_output(self):
+        return lasagne.layers.get_output(self.l_out, deterministic = True)
 
     def get_params(self):
         return lasagne.layers.get_all_params(self.l_out, trainable = True)
@@ -28,14 +31,15 @@ def one_hot(c, n):
     ohv[c] = 1
     return np.asarray(ohv)
 
-hidden_units = 512
+hidden_units = 256
 learning_rate = 1e-2
 seq_length = 20
 batch_size = 128
 grad_clip = 100
-num_epochs = 50
+num_epochs = 200
 print_freq = 1000
 sample_size = 200
+text_size = 1200
 generation_phrase = "The quick brown fox jumps"
 
 x = T.itensor3("x")
@@ -51,12 +55,13 @@ ix_to_char = {i:ch for i, ch in enumerate(chars)}
 net = ChaRNN(vocab_size, hidden_units, x, seq_length, grad_clip)
 print "Network created..."
 out = net.get_output()
+det_out = net.get_deterministic_output()
 params = net.get_params()
 loss = T.mean(lasagne.objectives.categorical_crossentropy(out, y))
 updates = lasagne.updates.adagrad(loss, params, learning_rate = learning_rate)
 print "Updates created..."
 train_fn = theano.function([x, y], loss, updates = updates, allow_input_downcast = True)
-predict = theano.function([x], out, allow_input_downcast = True)
+predict = theano.function([x], det_out, allow_input_downcast = True)
 print "Train functions created..."
 
 if os.path.isfile("charnn.npy"):
@@ -88,3 +93,14 @@ for n in range(num_epochs * data_size / batch_size):
         net.save_model("charnn.npy")
 net.save_model("charnn.npy")
 print "End of training!"
+print "Some sample text from the trained network:"
+assert len(generation_phrase) >= seq_length
+txt = list(generation_phrase)[:seq_length]
+char = [one_hot(char_to_ix[ch], vocab_size) for ch in txt]
+txt = ""
+for i in range(text_size):
+    prob = predict([char])
+    l = np.random.choice(np.arange(vocab_size), p = prob[0])
+    char = np.append(char[1:], [one_hot(l, vocab_size)], axis = 0)
+    txt += ix_to_char[l]
+print '---\n %s \n---' % (txt)
